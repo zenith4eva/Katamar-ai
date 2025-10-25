@@ -78,10 +78,10 @@ TIPS:
         if (player != null)
         {
             // Ensure player has proper setup
-            if (player.size <= 0)
+            if (player.baseSize <= 0)
             {
-                player.size = 1f;
-                Debug.Log("Set player size to 1.0");
+                player.baseSize = 1f;
+                Debug.Log("Set player base size to 1.0");
             }
             
             // Add pickup effects component if not present

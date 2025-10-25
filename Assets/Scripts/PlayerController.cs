@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using System.Collections;
 using System.Collections.Generic;
 
 public class PlayerController : MonoBehaviour
@@ -15,16 +16,38 @@ public class PlayerController : MonoBehaviour
     public LayerMask groundLayer = 1;
     
     [Header("Pickup System")]
-    public float size = 1f;
+    public float baseSize = 1f;
     public Transform pickupParent;
+    public int totalPoints = 0;
+    
+    [Header("Size Growth")]
+    public float sizeGrowthRate = 0.1f; // How much size increases per point
+    public float maxSize = 5f; // Maximum player size
+    public float massGrowthRate = 0.5f; // How much mass increases per point
+    
+    [Header("Growth Animation")]
+    public float growthDuration = 0.5f; // How long the growth animation takes
+    public AnimationCurve growthEase = AnimationCurve.EaseInOut(0, 0, 1, 1); // Easing curve for growth
+    public bool useJuicyGrowth = true; // Enable/disable smooth growth animation
+    
+    [Header("Juice Effects")]
+    public bool enableScreenShake = true; // Enable screen shake on growth
+    public float shakeIntensity = 0.1f; // How intense the screen shake is
+    public float shakeDuration = 0.2f; // How long the screen shake lasts
     
     [Header("Rolling Physics")]
     public float spinSpeedMultiplier = 1f;
     
     private Rigidbody rb;
+    private Transform sphereTransform;
     private Camera playerCamera;
     private bool isGrounded;
     private List<MonoBehaviour> pickedUpObjects = new List<MonoBehaviour>();
+    
+    // Growth animation variables
+    private float currentDisplaySize = 1f; // The currently displayed size (for animation)
+    private float targetSize = 1f; // The target size we're animating towards
+    private Coroutine growthCoroutine;
     
     // Input System
     private InputSystem_Actions inputActions;
@@ -52,7 +75,28 @@ public class PlayerController : MonoBehaviour
     
     void Start()
     {
+        // Find the sphere child object
+        sphereTransform = transform.Find("Sphere");
+        if (sphereTransform == null)
+        {
+            Debug.LogError("PlayerController requires a 'Sphere' child object!");
+            return;
+        }
+        
+        // Get or add Rigidbody to the Player object (top level)
         rb = GetComponent<Rigidbody>();
+        if (rb == null)
+        {
+            rb = gameObject.AddComponent<Rigidbody>();
+        }
+        
+        // Remove Rigidbody from sphere child if it exists
+        Rigidbody sphereRb = sphereTransform.GetComponent<Rigidbody>();
+        if (sphereRb != null)
+        {
+            DestroyImmediate(sphereRb);
+        }
+        
         playerCamera = Camera.main;
         
         // Configure rigidbody for rolling
@@ -62,7 +106,11 @@ public class PlayerController : MonoBehaviour
         // Setup pickup parent if not assigned
         if (pickupParent == null)
         {
-            pickupParent = transform;
+            pickupParent = transform.Find("Pickup Parent");
+            if (pickupParent == null)
+            {
+                pickupParent = transform;
+            }
         }
     }
     
@@ -142,7 +190,8 @@ public class PlayerController : MonoBehaviour
         if (horizontalVelocity.magnitude > 0.1f)
         {
             Vector3 rotationAxis = Vector3.Cross(Vector3.up, horizontalVelocity.normalized);
-            float rotationSpeed = horizontalVelocity.magnitude * 360f / (2f * Mathf.PI * 0.5f) * spinSpeedMultiplier; // 0.5f is sphere radius
+            float currentRadius = 0.5f; // Base sphere radius (collider scales with transform)
+            float rotationSpeed = horizontalVelocity.magnitude * 360f / (2f * Mathf.PI * currentRadius) * spinSpeedMultiplier;
             rb.AddTorque(rotationAxis * rotationSpeed * Time.fixedDeltaTime, ForceMode.VelocityChange);
         }
     }
@@ -158,22 +207,149 @@ public class PlayerController : MonoBehaviour
     
     void CheckGrounded()
     {
-        // Simple ground check using raycast
+        // Simple ground check using raycast from player position
         isGrounded = Physics.Raycast(transform.position, Vector3.down, 0.6f, groundLayer);
     }
     
     // Pickup System Methods
+    public float GetCurrentSize()
+    {
+        return baseSize + (totalPoints * sizeGrowthRate);
+    }
+    
+    public float GetCurrentDisplaySize()
+    {
+        return currentDisplaySize;
+    }
+    
     public bool CanPickup(float objectSize)
     {
-        return size >= objectSize;
+        return GetCurrentSize() >= objectSize;
     }
     
     public void OnPickupSuccess(MonoBehaviour pickupObject)
     {
         pickedUpObjects.Add(pickupObject);
         
-        // You can add logic here to increase player size, score, etc.
-        // For example: size += pickupObject.size * 0.1f;
+        // Get point value from pickup object
+        var getPointValueMethod = pickupObject.GetType().GetMethod("GetPointValue");
+        if (getPointValueMethod != null)
+        {
+            int points = (int)getPointValueMethod.Invoke(pickupObject, null);
+            AddPoints(points);
+        }
+    }
+    
+    public void AddPoints(int points)
+    {
+        totalPoints += points;
+        UpdatePlayerSize();
+    }
+    
+    void UpdatePlayerSize()
+    {
+        float newSize = GetCurrentSize();
+        
+        // Clamp size to maximum
+        newSize = Mathf.Min(newSize, maxSize);
+        targetSize = newSize;
+        
+        // Update rigidbody mass for heavier feel (immediate)
+        if (rb != null)
+        {
+            rb.mass = 1f + (totalPoints * massGrowthRate);
+        }
+        
+        // Start smooth growth animation
+        if (useJuicyGrowth)
+        {
+            if (growthCoroutine != null)
+            {
+                StopCoroutine(growthCoroutine);
+            }
+            growthCoroutine = StartCoroutine(AnimateGrowth());
+        }
+        else
+        {
+            // Instant growth (no animation)
+            currentDisplaySize = targetSize;
+            UpdateSphereScale();
+        }
+        
+        // Add screen shake for juice
+        if (enableScreenShake && playerCamera != null)
+        {
+            StartCoroutine(ScreenShake());
+        }
+        
+        Debug.Log($"Player size updated: {newSize}, Points: {totalPoints}, Mass: {rb.mass}");
+    }
+    
+    IEnumerator AnimateGrowth()
+    {
+        float startSize = currentDisplaySize;
+        float elapsed = 0f;
+        
+        while (elapsed < growthDuration)
+        {
+            elapsed += Time.deltaTime;
+            float progress = elapsed / growthDuration;
+            
+            // Apply easing curve
+            float easedProgress = growthEase.Evaluate(progress);
+            
+            // Interpolate between start and target size
+            currentDisplaySize = Mathf.Lerp(startSize, targetSize, easedProgress);
+            
+            // Update visual scale
+            UpdateSphereScale();
+            
+            yield return null;
+        }
+        
+        // Ensure we end exactly at target size
+        currentDisplaySize = targetSize;
+        UpdateSphereScale();
+        
+        growthCoroutine = null;
+    }
+    
+    void UpdateSphereScale()
+    {
+        // Update sphere child scale (only the visual/collision sphere grows)
+        if (sphereTransform != null)
+        {
+            sphereTransform.localScale = Vector3.one * currentDisplaySize;
+        }
+    }
+    
+    IEnumerator ScreenShake()
+    {
+        Vector3 originalPosition = playerCamera.transform.localPosition;
+        float elapsed = 0f;
+        
+        while (elapsed < shakeDuration)
+        {
+            elapsed += Time.deltaTime;
+            float progress = elapsed / shakeDuration;
+            
+            // Decrease shake intensity over time
+            float currentIntensity = shakeIntensity * (1f - progress);
+            
+            // Random shake offset
+            Vector3 shakeOffset = new Vector3(
+                Random.Range(-currentIntensity, currentIntensity),
+                Random.Range(-currentIntensity, currentIntensity),
+                0f
+            );
+            
+            playerCamera.transform.localPosition = originalPosition + shakeOffset;
+            
+            yield return null;
+        }
+        
+        // Return camera to original position
+        playerCamera.transform.localPosition = originalPosition;
     }
     
     public void DropAllPickups()
@@ -202,6 +378,6 @@ public class PlayerController : MonoBehaviour
         
         // Draw size indicator
         Gizmos.color = Color.blue;
-        Gizmos.DrawWireSphere(transform.position, size * 0.5f);
+        Gizmos.DrawWireSphere(transform.position, 0.5f); // Base radius (visual scale handled by sphere transform)
     }
 }

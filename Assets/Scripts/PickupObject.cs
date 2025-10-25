@@ -4,6 +4,7 @@ public class PickupObject : MonoBehaviour
 {
     [Header("Pickup Settings")]
     public float size = 1f;
+    public int pointValue = 10;
     public AudioClip pickupSFX;
     public AudioClip failSFX;
     public GameObject pickupVFX;
@@ -31,8 +32,18 @@ public class PickupObject : MonoBehaviour
     {
         if (isPickedUp) return;
         
-        // Check if the other object has a PlayerController
-        var player = other.GetComponent<MonoBehaviour>();
+        // Look for PlayerController on the colliding object or its parent
+        MonoBehaviour player = other.GetComponent<MonoBehaviour>();
+        if (player == null || player.GetType().Name != "PlayerController")
+        {
+            // If not found on the colliding object, check the parent
+            Transform parent = other.transform.parent;
+            if (parent != null)
+            {
+                player = parent.GetComponent<MonoBehaviour>();
+            }
+        }
+        
         if (player != null && player.GetType().Name == "PlayerController")
         {
             // Use reflection to call CanPickup method
@@ -68,8 +79,16 @@ public class PickupObject : MonoBehaviour
             Instantiate(pickupVFX, transform.position, Quaternion.identity);
         }
         
-        // Parent to player
-        transform.SetParent(player.transform);
+        // Parent to player's pickup parent (if it exists) or player itself
+        Transform pickupParent = player.transform.Find("Pickup Parent");
+        if (pickupParent != null)
+        {
+            transform.SetParent(pickupParent);
+        }
+        else
+        {
+            transform.SetParent(player.transform);
+        }
         
         // Disable all colliders
         if (objectColliders != null)
@@ -136,5 +155,10 @@ public class PickupObject : MonoBehaviour
         
         // Unparent from player
         transform.SetParent(null);
+    }
+    
+    public int GetPointValue()
+    {
+        return pointValue;
     }
 }
