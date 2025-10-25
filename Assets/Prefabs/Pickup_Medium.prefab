@@ -126,7 +126,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8c3554c1dd075b24380b29bb66e656e4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PickupObject
-  size: 2
+  size: 1.75
   pointValue: 0.5
   screenShakeIntensity: 0.1
   pickupSFX: {fileID: 0}
