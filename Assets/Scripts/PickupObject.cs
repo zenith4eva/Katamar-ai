@@ -4,7 +4,8 @@ public class PickupObject : MonoBehaviour
 {
     [Header("Pickup Settings")]
     public float size = 1f;
-    public int pointValue = 10;
+    public float pointValue = 10f;
+    public float screenShakeIntensity = 0.1f;
     public AudioClip pickupSFX;
     public AudioClip failSFX;
     public GameObject pickupVFX;
@@ -157,8 +158,13 @@ public class PickupObject : MonoBehaviour
         transform.SetParent(null);
     }
     
-    public int GetPointValue()
+    public float GetPointValue()
     {
         return pointValue;
+    }
+    
+    public float GetScreenShakeIntensity()
+    {
+        return screenShakeIntensity;
     }
 }

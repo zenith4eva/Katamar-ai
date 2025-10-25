@@ -252,7 +252,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PickupObject
   size: 0.5
-  pointValue: 1
+  pointValue: 0.1
+  screenShakeIntensity: 0.1
   pickupSFX: {fileID: 0}
   failSFX: {fileID: 0}
   pickupVFX: {fileID: 0}

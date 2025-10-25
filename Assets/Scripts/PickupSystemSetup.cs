@@ -74,7 +74,7 @@ TIPS:
     [ContextMenu("Setup Player for Pickup System")]
     void SetupPlayer()
     {
-        PlayerController player = FindObjectOfType<PlayerController>();
+        PlayerController player = FindFirstObjectByType<PlayerController>();
         if (player != null)
         {
             // Ensure player has proper setup

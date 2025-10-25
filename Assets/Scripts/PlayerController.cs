@@ -2,6 +2,28 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Collections;
 using System.Collections.Generic;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
+// Custom attribute to make fields read-only in Inspector
+public class ReadOnlyAttribute : PropertyAttribute
+{
+    public ReadOnlyAttribute() { }
+}
+
+#if UNITY_EDITOR
+[CustomPropertyDrawer(typeof(ReadOnlyAttribute))]
+public class ReadOnlyDrawer : PropertyDrawer
+{
+    public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
+    {
+        GUI.enabled = false;
+        EditorGUI.PropertyField(position, property, label, true);
+        GUI.enabled = true;
+    }
+}
+#endif
 
 public class PlayerController : MonoBehaviour
 {
@@ -18,7 +40,10 @@ public class PlayerController : MonoBehaviour
     [Header("Pickup System")]
     public float baseSize = 1f;
     public Transform pickupParent;
-    public int totalPoints = 0;
+    public float totalPoints = 0f;
+    
+    [Header("Current Status (Read-Only)")]
+    [SerializeField, ReadOnly] private float currentSize;
     
     [Header("Size Growth")]
     public float sizeGrowthRate = 0.1f; // How much size increases per point
@@ -44,8 +69,12 @@ public class PlayerController : MonoBehaviour
     private bool isGrounded;
     private List<MonoBehaviour> pickedUpObjects = new List<MonoBehaviour>();
     
+    // Camera direction smoothing
+    private Vector3 lastValidCameraForward = Vector3.forward;
+    private Vector3 lastValidCameraRight = Vector3.right;
+    
     // Growth animation variables
-    private float currentDisplaySize = 1f; // The currently displayed size (for animation)
+    [SerializeField, ReadOnly] private float currentDisplaySize = 1f; // The currently displayed size (for animation)
     private float targetSize = 1f; // The target size we're animating towards
     private Coroutine growthCoroutine;
     
@@ -118,6 +147,9 @@ public class PlayerController : MonoBehaviour
     {
         CheckGrounded();
         HandleJump();
+        
+        // Update current size for Inspector display
+        currentSize = GetCurrentSize();
     }
     
     void FixedUpdate()
@@ -157,14 +189,50 @@ public class PlayerController : MonoBehaviour
             return;
         }
         
-        // Get camera direction (projected on ground plane)
+        // Get camera direction (projected on ground plane) 
+        if (playerCamera == null)
+        {
+            // Fallback to world directions if camera is null
+            Vector3 fallbackMoveDirection = new Vector3(horizontal, 0, vertical).normalized;
+            Vector3 fallbackDesiredVelocity = fallbackMoveDirection * moveSpeed;
+            Vector3 fallbackVelocityChange = fallbackDesiredVelocity - new Vector3(rb.linearVelocity.x, 0, rb.linearVelocity.z);
+            fallbackVelocityChange = Vector3.ClampMagnitude(fallbackVelocityChange, acceleration * Time.fixedDeltaTime);
+            rb.AddForce(fallbackVelocityChange, ForceMode.VelocityChange);
+            return;
+        }
+        
         Vector3 cameraForward = playerCamera.transform.forward;
         cameraForward.y = 0;
-        cameraForward.Normalize();
         
         Vector3 cameraRight = playerCamera.transform.right;
         cameraRight.y = 0;
-        cameraRight.Normalize();
+        
+        // Check if camera vectors are valid (not too small)
+        if (cameraForward.magnitude < 0.1f)
+        {
+            // If camera is looking too vertically, use last valid direction
+            cameraForward = lastValidCameraForward;
+        }
+        else
+        {
+            cameraForward.Normalize();
+            // Smooth the camera direction to prevent stuttering
+            lastValidCameraForward = Vector3.Slerp(lastValidCameraForward, cameraForward, Time.fixedDeltaTime * 10f);
+            cameraForward = lastValidCameraForward;
+        }
+        
+        if (cameraRight.magnitude < 0.1f)
+        {
+            // If camera is looking too vertically, use last valid direction
+            cameraRight = lastValidCameraRight;
+        }
+        else
+        {
+            cameraRight.Normalize();
+            // Smooth the camera direction to prevent stuttering
+            lastValidCameraRight = Vector3.Slerp(lastValidCameraRight, cameraRight, Time.fixedDeltaTime * 10f);
+            cameraRight = lastValidCameraRight;
+        }
         
         // Calculate movement direction relative to camera
         Vector3 moveDirection = (cameraForward * vertical + cameraRight * horizontal).normalized;
@@ -233,25 +301,38 @@ public class PlayerController : MonoBehaviour
         
         // Get point value from pickup object
         var getPointValueMethod = pickupObject.GetType().GetMethod("GetPointValue");
+        float points = 0f;
         if (getPointValueMethod != null)
         {
-            int points = (int)getPointValueMethod.Invoke(pickupObject, null);
-            AddPoints(points);
+            points = (float)getPointValueMethod.Invoke(pickupObject, null);
         }
+        
+        // Get screen shake intensity from pickup object
+        var getScreenShakeMethod = pickupObject.GetType().GetMethod("GetScreenShakeIntensity");
+        float pickupShakeIntensity = shakeIntensity; // Default to player's shake intensity
+        if (getScreenShakeMethod != null)
+        {
+            pickupShakeIntensity = (float)getScreenShakeMethod.Invoke(pickupObject, null);
+        }
+        
+        AddPoints(points, pickupShakeIntensity);
     }
     
-    public void AddPoints(int points)
+    public void AddPoints(float points, float customShakeIntensity = -1f)
     {
         totalPoints += points;
-        UpdatePlayerSize();
+        UpdatePlayerSize(customShakeIntensity);
     }
     
-    void UpdatePlayerSize()
+    void UpdatePlayerSize(float customShakeIntensity = -1f)
     {
         float newSize = GetCurrentSize();
         
         // Clamp size to maximum
         newSize = Mathf.Min(newSize, maxSize);
+        
+        // Check if size actually increased (for screen shake)
+        bool sizeIncreased = newSize > targetSize;
         targetSize = newSize;
         
         // Update rigidbody mass for heavier feel (immediate)
@@ -276,10 +357,12 @@ public class PlayerController : MonoBehaviour
             UpdateSphereScale();
         }
         
-        // Add screen shake for juice
-        if (enableScreenShake && playerCamera != null)
+        // Add screen shake for juice - only when size actually increases
+        if (sizeIncreased && enableScreenShake && playerCamera != null)
         {
-            StartCoroutine(ScreenShake());
+            // Use custom shake intensity if provided, otherwise use default
+            float shakeIntensityToUse = customShakeIntensity > 0f ? customShakeIntensity : shakeIntensity;
+            StartCoroutine(ScreenShake(shakeIntensityToUse));
         }
         
         Debug.Log($"Player size updated: {newSize}, Points: {totalPoints}, Mass: {rb.mass}");
@@ -323,10 +406,13 @@ public class PlayerController : MonoBehaviour
         }
     }
     
-    IEnumerator ScreenShake()
+    IEnumerator ScreenShake(float customIntensity = -1f)
     {
         Vector3 originalPosition = playerCamera.transform.localPosition;
         float elapsed = 0f;
+        
+        // Use custom intensity if provided, otherwise use default
+        float intensityToUse = customIntensity > 0f ? customIntensity : shakeIntensity;
         
         while (elapsed < shakeDuration)
         {
@@ -334,7 +420,7 @@ public class PlayerController : MonoBehaviour
             float progress = elapsed / shakeDuration;
             
             // Decrease shake intensity over time
-            float currentIntensity = shakeIntensity * (1f - progress);
+            float currentIntensity = intensityToUse * (1f - progress);
             
             // Random shake offset
             Vector3 shakeOffset = new Vector3(
