@@ -42,6 +42,7 @@ public class PlayerController : MonoBehaviour
     public Transform pickupParent;
     public float totalPoints = 0f;
     
+    
     [Header("Current Status (Read-Only)")]
     [SerializeField, ReadOnly] private float currentSize;
     

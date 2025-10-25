@@ -227,6 +227,7 @@ MonoBehaviour:
   baseSize: 1
   pickupParent: {fileID: 7817800033135198942}
   totalPoints: 0
+  currentSize: 0
   sizeGrowthRate: 0.1
   maxSize: 5
   massGrowthRate: 0.5
@@ -260,3 +261,4 @@ MonoBehaviour:
   shakeIntensity: 0.1
   shakeDuration: 0.2
   spinSpeedMultiplier: 0.01
+  currentDisplaySize: 1

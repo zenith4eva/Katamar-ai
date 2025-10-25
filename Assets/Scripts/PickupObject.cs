@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 public class PickupObject : MonoBehaviour
 {
@@ -11,16 +12,27 @@ public class PickupObject : MonoBehaviour
     public GameObject pickupVFX;
     public GameObject failVFX;
     
+    [Header("Timer Settings")]
+    [Tooltip("Time in seconds before the picked up object deactivates. Set to 0 to disable auto-deactivation.")]
+    public float deactivationTimer = 5f;
+    [Tooltip("Duration of the shrinking animation before deactivation.")]
+    public float shrinkAnimationDuration = 1f;
+    [Tooltip("Animation curve for the shrinking effect.")]
+    public AnimationCurve shrinkCurve = AnimationCurve.EaseInOut(0f, 1f, 1f, 0f);
+    
     private bool isPickedUp = false;
     private Collider[] objectColliders;
     private Rigidbody objectRigidbody;
     private AudioSource audioSource;
+    private Coroutine deactivationCoroutine;
+    private Vector3 originalScale;
     
     void Start()
     {
         objectColliders = GetComponents<Collider>();
         objectRigidbody = GetComponent<Rigidbody>();
         audioSource = GetComponent<AudioSource>();
+        originalScale = transform.localScale;
         
         // Ensure this object has the pickup tag
         if (!gameObject.CompareTag("Pickup"))
@@ -109,12 +121,50 @@ public class PickupObject : MonoBehaviour
             objectRigidbody.isKinematic = true;
         }
         
+        // Start deactivation timer if set
+        if (deactivationTimer > 0f)
+        {
+            deactivationCoroutine = StartCoroutine(DeactivationTimer());
+        }
+        
         // Notify player of successful pickup using reflection
         var onPickupSuccessMethod = player.GetType().GetMethod("OnPickupSuccess");
         if (onPickupSuccessMethod != null)
         {
             onPickupSuccessMethod.Invoke(player, new object[] { this });
         }
+    }
+    
+    IEnumerator DeactivationTimer()
+    {
+        // Wait for the main timer duration
+        yield return new WaitForSeconds(deactivationTimer);
+        
+        // Start shrinking animation
+        yield return StartCoroutine(ShrinkAndDeactivate());
+    }
+    
+    IEnumerator ShrinkAndDeactivate()
+    {
+        float elapsedTime = 0f;
+        Vector3 startScale = transform.localScale;
+        
+        while (elapsedTime < shrinkAnimationDuration)
+        {
+            elapsedTime += Time.deltaTime;
+            float progress = elapsedTime / shrinkAnimationDuration;
+            float curveValue = shrinkCurve.Evaluate(progress);
+            
+            transform.localScale = Vector3.Lerp(startScale, Vector3.zero, 1f - curveValue);
+            
+            yield return null;
+        }
+        
+        // Ensure scale is exactly zero
+        transform.localScale = Vector3.zero;
+        
+        // Deactivate the object
+        gameObject.SetActive(false);
     }
     
     void PlayFailEffects()
@@ -135,6 +185,16 @@ public class PickupObject : MonoBehaviour
     public void ResetPickup()
     {
         isPickedUp = false;
+        
+        // Stop deactivation coroutine if running
+        if (deactivationCoroutine != null)
+        {
+            StopCoroutine(deactivationCoroutine);
+            deactivationCoroutine = null;
+        }
+        
+        // Reset scale to original
+        transform.localScale = originalScale;
         
         // Re-enable all colliders
         if (objectColliders != null)
