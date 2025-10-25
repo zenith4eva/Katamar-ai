@@ -34,7 +34,7 @@ public class PlayerController : MonoBehaviour
     public float deceleration = 10f;
     
     [Header("Physics")]
-    public float jumpForce = 10f;
+    public float jumpHeight = 2f; // Desired jump height in world units
     public LayerMask groundLayer = 1;
     
     [Header("Pickup System")]
@@ -269,15 +269,27 @@ public class PlayerController : MonoBehaviour
     {
         if (jumpInput && isGrounded)
         {
-            rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+            // Calculate required velocity to reach desired jump height
+            // Using physics: v = sqrt(2 * g * h) where g is gravity and h is height
+            float requiredVelocity = Mathf.Sqrt(2f * Mathf.Abs(Physics.gravity.y) * jumpHeight);
+            
+            // Set vertical velocity directly to achieve consistent jump height
+            Vector3 currentVelocity = rb.linearVelocity;
+            currentVelocity.y = requiredVelocity;
+            rb.linearVelocity = currentVelocity;
+            
             jumpInput = false; // Reset jump input
         }
     }
     
     void CheckGrounded()
     {
-        // Simple ground check using raycast from player position
-        isGrounded = Physics.Raycast(transform.position, Vector3.down, 0.6f, groundLayer);
+        // Ground check that accounts for current player size
+        // Use sphere radius + small buffer for ground detection
+        float sphereRadius = 0.5f * currentDisplaySize; // Base radius (0.5) * current scale
+        float groundCheckDistance = sphereRadius + 0.1f; // Add small buffer
+        
+        isGrounded = Physics.Raycast(transform.position, Vector3.down, groundCheckDistance, groundLayer);
     }
     
     // Pickup System Methods

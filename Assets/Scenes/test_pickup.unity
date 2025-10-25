@@ -8642,7 +8642,7 @@ MonoBehaviour:
   distance: 8
   height: 3
   smoothSpeed: 10
-  minVerticalAngle: -30
+  minVerticalAngle: -15
   maxVerticalAngle: 60
 --- !u!1001 &1725445647
 PrefabInstance:
