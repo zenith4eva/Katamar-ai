@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using System.Collections.Generic;
 
 public class PlayerController : MonoBehaviour
 {
@@ -13,9 +14,17 @@ public class PlayerController : MonoBehaviour
     public float jumpForce = 10f;
     public LayerMask groundLayer = 1;
     
+    [Header("Pickup System")]
+    public float size = 1f;
+    public Transform pickupParent;
+    
+    [Header("Rolling Physics")]
+    public float spinSpeedMultiplier = 1f;
+    
     private Rigidbody rb;
     private Camera playerCamera;
     private bool isGrounded;
+    private List<MonoBehaviour> pickedUpObjects = new List<MonoBehaviour>();
     
     // Input System
     private InputSystem_Actions inputActions;
@@ -49,6 +58,12 @@ public class PlayerController : MonoBehaviour
         // Configure rigidbody for rolling
         rb.freezeRotation = false;
         rb.centerOfMass = Vector3.zero;
+        
+        // Setup pickup parent if not assigned
+        if (pickupParent == null)
+        {
+            pickupParent = transform;
+        }
     }
     
     void Update()
@@ -127,7 +142,7 @@ public class PlayerController : MonoBehaviour
         if (horizontalVelocity.magnitude > 0.1f)
         {
             Vector3 rotationAxis = Vector3.Cross(Vector3.up, horizontalVelocity.normalized);
-            float rotationSpeed = horizontalVelocity.magnitude * 360f / (2f * Mathf.PI * 0.5f); // 0.5f is sphere radius
+            float rotationSpeed = horizontalVelocity.magnitude * 360f / (2f * Mathf.PI * 0.5f) * spinSpeedMultiplier; // 0.5f is sphere radius
             rb.AddTorque(rotationAxis * rotationSpeed * Time.fixedDeltaTime, ForceMode.VelocityChange);
         }
     }
@@ -147,10 +162,46 @@ public class PlayerController : MonoBehaviour
         isGrounded = Physics.Raycast(transform.position, Vector3.down, 0.6f, groundLayer);
     }
     
+    // Pickup System Methods
+    public bool CanPickup(float objectSize)
+    {
+        return size >= objectSize;
+    }
+    
+    public void OnPickupSuccess(MonoBehaviour pickupObject)
+    {
+        pickedUpObjects.Add(pickupObject);
+        
+        // You can add logic here to increase player size, score, etc.
+        // For example: size += pickupObject.size * 0.1f;
+    }
+    
+    public void DropAllPickups()
+    {
+        foreach (MonoBehaviour pickup in pickedUpObjects)
+        {
+            var resetMethod = pickup.GetType().GetMethod("ResetPickup");
+            if (resetMethod != null)
+            {
+                resetMethod.Invoke(pickup, null);
+            }
+        }
+        pickedUpObjects.Clear();
+    }
+    
+    public int GetPickupCount()
+    {
+        return pickedUpObjects.Count;
+    }
+    
     void OnDrawGizmosSelected()
     {
         // Draw ground check ray
         Gizmos.color = isGrounded ? Color.green : Color.red;
         Gizmos.DrawRay(transform.position, Vector3.down * 0.6f);
+        
+        // Draw size indicator
+        Gizmos.color = Color.blue;
+        Gizmos.DrawWireSphere(transform.position, size * 0.5f);
     }
 }
