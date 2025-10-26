@@ -109,7 +109,6 @@ public class PlayerController : MonoBehaviour
         sphereTransform = transform.Find("Sphere");
         if (sphereTransform == null)
         {
-            Debug.LogError("PlayerController requires a 'Sphere' child object!");
             return;
         }
         
@@ -378,7 +377,6 @@ public class PlayerController : MonoBehaviour
             StartCoroutine(ScreenShake(shakeIntensityToUse));
         }
         
-        Debug.Log($"Player size updated: {newSize}, Points: {totalPoints}, Mass: {rb.mass}");
     }
     
     IEnumerator AnimateGrowth()
