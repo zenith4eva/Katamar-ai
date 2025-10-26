@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using UnityEngine.SceneManagement;
 using System.Collections;
 
 public class UIManager : MonoBehaviour
@@ -12,6 +13,7 @@ public class UIManager : MonoBehaviour
     public GameObject gameCompletePanel;
     public GameObject gameOverPanel;
     public Button restartButton;
+    public Button restartButton2;
     
     [Header("Game Settings")]
     public float gameTime = 120f; // 2 minutes
@@ -41,38 +43,72 @@ public class UIManager : MonoBehaviour
     
     void Start()
     {
+        // Start coroutine to setup UI references after a frame
+        StartCoroutine(SetupUIAfterFrame());
+    }
+    
+    IEnumerator SetupUIAfterFrame()
+    {
+        // Wait one frame for UI to be fully initialized
+        yield return null;
+        
         // Auto-setup UI references if not assigned
         AutoSetupUIReferences();
-        
+
         // Find player controller
         playerController = FindObjectOfType<PlayerController>();
         if (playerController == null)
         {
             Debug.LogError("UIManager: PlayerController not found!");
-            return;
+            yield break;
         }
-        
+
         // Initialize UI
         currentTime = gameTime;
         UpdateTimerDisplay();
         UpdateSizeDisplay();
         UpdateGoalSizeDisplay();
-        
-        // Setup restart button
+
+        // Setup restart buttons
         if (restartButton != null)
         {
             restartButton.onClick.AddListener(RestartGame);
+            Debug.Log("RestartButton listener added");
+        }
+        else
+        {
+            Debug.LogError("RestartButton is null - cannot add listener");
         }
         
+        if (restartButton2 != null)
+        {
+            restartButton2.onClick.AddListener(RestartGame);
+            Debug.Log("RestartButton2 listener added");
+        }
+        else
+        {
+            Debug.LogError("RestartButton2 is null - cannot add listener");
+        }
+
         // Hide panels initially
         if (gameCompletePanel != null)
             gameCompletePanel.SetActive(false);
         if (gameOverPanel != null)
             gameOverPanel.SetActive(false);
+        
+        // Hide mouse cursor during gameplay
+        Cursor.visible = false;
+        Cursor.lockState = CursorLockMode.Locked;
+            
+        Debug.Log("UI Setup completed");
     }
     
     void AutoSetupUIReferences()
     {
+        Debug.Log("AutoSetupUIReferences: Starting auto-setup");
+        Debug.Log($"AutoSetupUIReferences: Transform name: {transform.name}");
+        Debug.Log($"AutoSetupUIReferences: Child count: {transform.childCount}");
+        
         // Find UI elements by name if not already assigned
         if (timerText == null)
         {
@@ -81,6 +117,10 @@ public class UIManager : MonoBehaviour
             {
                 timerText = timerTextTransform.GetComponent<TMPro.TextMeshProUGUI>();
                 Debug.Log("Auto-setup: TimerText reference found");
+            }
+            else
+            {
+                Debug.LogError("Auto-setup: TimerText not found at TimerPanel/TimerText");
             }
         }
         
@@ -91,6 +131,10 @@ public class UIManager : MonoBehaviour
             {
                 sizeText = sizeTextTransform.GetComponent<TMPro.TextMeshProUGUI>();
                 Debug.Log("Auto-setup: SizeText reference found");
+            }
+            else
+            {
+                Debug.LogError("Auto-setup: SizeText not found at SizePanel/SizeText");
             }
         }
         
@@ -131,6 +175,24 @@ public class UIManager : MonoBehaviour
             {
                 restartButton = restartButtonTransform.GetComponent<UnityEngine.UI.Button>();
                 Debug.Log("Auto-setup: RestartButton reference found");
+            }
+            else
+            {
+                Debug.LogError("Auto-setup: RestartButton not found at GameCompletePanel/RestartButton");
+            }
+        }
+        
+        if (restartButton2 == null)
+        {
+            Transform restartButton2Transform = transform.Find("GameOverPanel/RestartButton2");
+            if (restartButton2Transform != null)
+            {
+                restartButton2 = restartButton2Transform.GetComponent<UnityEngine.UI.Button>();
+                Debug.Log("Auto-setup: RestartButton2 reference found");
+            }
+            else
+            {
+                Debug.LogError("Auto-setup: RestartButton2 not found at GameOverPanel/RestartButton2");
             }
         }
     }
@@ -271,6 +333,10 @@ public class UIManager : MonoBehaviour
             playerController.enabled = false;
         }
         
+        // Show mouse cursor for UI interaction
+        Cursor.visible = true;
+        Cursor.lockState = CursorLockMode.None;
+        
         if (gameCompletePanel != null)
         {
             gameCompletePanel.SetActive(true);
@@ -294,6 +360,10 @@ public class UIManager : MonoBehaviour
             playerController.enabled = false;
         }
         
+        // Show mouse cursor for UI interaction
+        Cursor.visible = true;
+        Cursor.lockState = CursorLockMode.None;
+        
         if (gameOverPanel != null)
         {
             gameOverPanel.SetActive(true);
@@ -304,31 +374,17 @@ public class UIManager : MonoBehaviour
     
     public void RestartGame()
     {
-        // Reset game state
-        currentTime = gameTime;
-        gameActive = true;
-        gameWon = false;
-        currentGameState = GameState.Playing;
+        Debug.Log("RestartGame() called - Reloading scene!");
         
-        // Hide panels
-        if (gameCompletePanel != null)
-            gameCompletePanel.SetActive(false);
-        if (gameOverPanel != null)
-            gameOverPanel.SetActive(false);
-        
-        // Reset player
-        if (playerController != null)
-        {
-            playerController.enabled = true; // Re-enable player input
-            playerController.totalPoints = 0f;
-            playerController.DropAllPickups();
-        }
-        
-        // Reset UI
-        UpdateTimerDisplay();
-        UpdateSizeDisplay();
-        
-        Debug.Log("Game Restarted!");
+        // Reload the current scene
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    }
+    
+    // Test method to manually trigger restart (for debugging)
+    public void TestRestart()
+    {
+        Debug.Log("TestRestart() called!");
+        RestartGame();
     }
     
     public GameState GetCurrentGameState()
