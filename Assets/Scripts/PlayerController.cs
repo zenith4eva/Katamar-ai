@@ -37,6 +37,10 @@ public class PlayerController : MonoBehaviour
     public float jumpHeight = 2f; // Desired jump height in world units
     public LayerMask groundLayer = 1;
     
+    [Header("Audio")]
+    public AudioSource audioSource;
+    public AudioClip jumpSFX;
+    
     [Header("Pickup System")]
     public float baseSize = 1f;
     public Transform pickupParent;
@@ -131,6 +135,17 @@ public class PlayerController : MonoBehaviour
         
         // Find UI Manager
         uiManager = FindObjectOfType<UIManager>();
+        
+        // Auto-setup AudioSource if not assigned
+        if (audioSource == null)
+        {
+            audioSource = GetComponent<AudioSource>();
+            if (audioSource == null)
+            {
+                audioSource = gameObject.AddComponent<AudioSource>();
+                Debug.Log("PlayerController: Added AudioSource component for SFX");
+            }
+        }
         
         // Configure rigidbody for rolling
         rb.freezeRotation = false;
@@ -281,7 +296,18 @@ public class PlayerController : MonoBehaviour
             currentVelocity.y = requiredVelocity;
             rb.linearVelocity = currentVelocity;
             
+            // Play jump SFX
+            PlayJumpSFX();
+            
             jumpInput = false; // Reset jump input
+        }
+    }
+    
+    void PlayJumpSFX()
+    {
+        if (audioSource != null && jumpSFX != null)
+        {
+            audioSource.PlayOneShot(jumpSFX);
         }
     }
     

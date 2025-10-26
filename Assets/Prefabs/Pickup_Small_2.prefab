@@ -255,7 +255,7 @@ MonoBehaviour:
   size: 0.5
   pointValue: 0.1
   screenShakeIntensity: 0.1
-  pickupSFX: {fileID: 0}
+  pickupSFX: {fileID: 8300000, guid: 902023635ad90234e9bde5b9ef4869e9, type: 3}
   failSFX: {fileID: 0}
   pickupVFX: {fileID: 0}
   failVFX: {fileID: 0}
