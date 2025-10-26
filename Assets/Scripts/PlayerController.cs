@@ -69,6 +69,7 @@ public class PlayerController : MonoBehaviour
     private Camera playerCamera;
     private bool isGrounded;
     private List<MonoBehaviour> pickedUpObjects = new List<MonoBehaviour>();
+    private UIManager uiManager;
     
     // Camera direction smoothing
     private Vector3 lastValidCameraForward = Vector3.forward;
@@ -127,6 +128,9 @@ public class PlayerController : MonoBehaviour
         }
         
         playerCamera = Camera.main;
+        
+        // Find UI Manager
+        uiManager = FindObjectOfType<UIManager>();
         
         // Configure rigidbody for rolling
         rb.freezeRotation = false;
@@ -334,6 +338,12 @@ public class PlayerController : MonoBehaviour
     {
         totalPoints += points;
         UpdatePlayerSize(customShakeIntensity);
+        
+        // Notify UI Manager of size change
+        if (uiManager != null)
+        {
+            uiManager.OnPlayerSizeChanged();
+        }
     }
     
     void UpdatePlayerSize(float customShakeIntensity = -1f)
